@@ -6,6 +6,7 @@ const CrimeDataChart = () => {
   const [selectedCrime, setSelectedCrime] = useState("");
   const [timeRange, setTimeRange] = useState([new Date(2015, 0, 1), new Date(2015, 11, 31)]); // Default time range
   const [crimeTypes, setCrimeTypes] = useState([]);
+  const [crimeDistribution, setCrimeDistribution] = useState([]); 
   const [timeScale, setTimeScale] = useState("day"); // Default to day scale
 
   // Load and process the CSV data
@@ -138,6 +139,87 @@ const CrimeDataChart = () => {
     setSelectedCrime(e.target.value);
   };
 
+// Draw the pie chart
+useEffect(() => {
+    if (data.length === 0) return; // Ensure data is loaded
+
+    // Filter data based on the time range
+    const filteredData = data.filter((d) => {
+      const isInTimeRange =
+        timeRange &&
+        d.date &&
+        d.date >= timeRange[0] &&
+        d.date <= timeRange[1];
+      return isInTimeRange;
+    });
+
+    // Aggregate crime data by type
+    const crimeCount = d3.rollups(
+      filteredData,
+      (v) => v.length,
+      (d) => d.crimeType
+    );
+
+    // Prepare data for pie chart (format: {crimeType, count})
+    const crimeDistributionData = crimeCount.map(([crimeType, count]) => ({
+      crimeType,
+      count,
+    }));
+
+    setCrimeDistribution(crimeDistributionData);
+  }, [data, timeRange]);
+
+  // Color scale for crime types
+  const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+  // Draw the pie chart
+  useEffect(() => {
+    if (crimeDistribution.length === 0) return; // No crime data to display
+
+    const width = 400;
+    const height = 400;
+    const radius = Math.min(width, height) / 2;
+
+    const svg = d3
+      .select("#pieChart")
+      .html("") // Clear previous chart
+      .append("svg")
+      .attr("width", width)
+      .attr("height", height)
+      .append("g")
+      .attr("transform", `translate(${width / 2},${height / 2})`);
+
+    const pie = d3.pie().value((d) => d.count);
+
+    const arc = d3.arc().outerRadius(radius - 10).innerRadius(0);
+
+    const pieChartData = pie(crimeDistribution);
+
+    svg
+      .selectAll(".arc")
+      .data(pieChartData)
+      .enter()
+      .append("g")
+      .attr("class", "arc")
+      .append("path")
+      .attr("d", arc)
+      .attr("fill", (d, i) => colorScale(i));
+
+    // Add text labels to the pie chart
+    svg
+      .selectAll(".arc")
+      .append("text")
+      .attr("transform", (d) => `translate(${arc.centroid(d)})`)
+      .attr("dy", ".35em")
+      .attr("text-anchor", "middle")
+      .text((d) => d.data.crimeType)
+      .style("fill", "#fff")
+      .style("font-size", "12px");
+
+  }, [crimeDistribution]);
+
+
+
   // Handle time range change (slider)
   const handleTimeRangeChange = () => {
     const startDate = new Date(parseInt(document.getElementById("startDateSlider").value));
@@ -224,7 +306,40 @@ const CrimeDataChart = () => {
 
       {/* Chart Container */}
       <div id="chart"></div>
+        
+    {/* Pie Chart */}
+    <div id="pieChart"></div>
+
+{/* Color Key */}
+<div style={{ marginTop: "20px" }}>
+  <h3>Crime Type Color Key:</h3>
+  <div>
+    {crimeDistribution.map((crime, index) => (
+      <div key={index} style={{ marginBottom: "5px" }}>
+        <span
+          style={{
+            display: "inline-block",
+            width: "20px",
+            height: "20px",
+            backgroundColor: colorScale(index),
+            marginRight: "10px",
+          }}
+        ></span>
+        <span>{crime.crimeType}</span>
+      </div>
+    ))}
+  </div>
+</div>
+
+
+
     </div>
+
+    
+
+
+
+    
   );
 };
 
