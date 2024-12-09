@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from "react";
 import * as d3 from "d3";
+import dynamic from 'next/dynamic';
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const CircleMarker = dynamic(() => import("react-leaflet").then((mod) => mod.CircleMarker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
+import 'leaflet/dist/leaflet.css'; // Leaflet default styles
+
 
 const CrimeDataChart = () => {
   const [data, setData] = useState([]);
@@ -7,7 +14,9 @@ const CrimeDataChart = () => {
   const [timeRange, setTimeRange] = useState([new Date(2015, 0, 1), new Date(2015, 11, 31)]); // Default time range
   const [crimeTypes, setCrimeTypes] = useState([]);
   const [crimeDistribution, setCrimeDistribution] = useState([]); 
+  const [crimeData, setCrimeData] = useState([]); 
   const [timeScale, setTimeScale] = useState("day"); // Default to day scale
+  const [loading, setLoading] = useState(true);
 
   // Load and process the CSV data
   useEffect(() => {
@@ -17,6 +26,8 @@ const CrimeDataChart = () => {
         .filter((d) => d["GO Report Date"] && d["GO Highest Offense Desc"]) // Filter valid rows
         .map((d) => ({
           date: parseDate(d["GO Report Date"].trim()),
+          lat: parseFloat(d.Latitude),
+          lng: parseFloat(d.Longitude),
           crimeType: d["GO Highest Offense Desc"].trim(),
         }));
 
@@ -46,7 +57,7 @@ const CrimeDataChart = () => {
       return isInTimeRange && matchesCrime;
     });
 
-    console.log("Filtered Data:", filteredData); // Debugging
+    //console.log("Filtered Data:", filteredData); // Debugging
 
     // Aggregate data based on selected time scale (day or month)
     const aggregatedData = timeScale === "day"
@@ -61,7 +72,7 @@ const CrimeDataChart = () => {
           (d) => d3.timeMonth.floor(d.date) // Group by month
         ).map(([key, value]) => ({ date: key, count: value }));
 
-    console.log("Aggregated Data:", aggregatedData); // Debugging
+    //console.log("Aggregated Data:", aggregatedData); // Debugging
 
     // Remove any existing chart elements before redrawing
     d3.select("#chart").selectAll("*").remove();
@@ -139,84 +150,139 @@ const CrimeDataChart = () => {
     setSelectedCrime(e.target.value);
   };
 
+
+// Draw the GeoMap
+useEffect(() => {
+  if (data.length === 0) return;
+
+  // Filter crimes based on the time range
+  const filteredData = data.filter(d => !isNaN(d.lat) && !isNaN(d.lng)).filter((d) => {
+    const isInTimeRange =
+      timeRange &&
+      d.date &&
+      d.date >= timeRange[0] &&
+      d.date <= timeRange[1];
+    return isInTimeRange;
+  });
+
+  // Group crimes into clusters (simple density-based approach)
+  const clusterRadius = 0.05; // Adjust for clustering precision
+  const clusters = [];
+  filteredData.forEach((crime) => {
+    const cluster = clusters.find(
+      (c) =>
+        Math.abs(c.lat - crime.lat) <= clusterRadius &&
+        Math.abs(c.lng - crime.lng) <= clusterRadius
+    );
+    if (cluster) {
+      cluster.count += 1;
+    } else {
+      clusters.push({ lat: crime.lat, lng: crime.lng, count: 1 });
+    }
+  });
+
+  setCrimeData(clusters);
+}, [data, timeRange]);
+
 // Draw the pie chart
 useEffect(() => {
-    if (data.length === 0) return; // Ensure data is loaded
+  if (data.length === 0) return; // Ensure data is loaded
 
-    // Filter data based on the time range
-    const filteredData = data.filter((d) => {
-      const isInTimeRange =
-        timeRange &&
-        d.date &&
-        d.date >= timeRange[0] &&
-        d.date <= timeRange[1];
-      return isInTimeRange;
+  // Filter data based on the time range
+  const filteredData = data.filter((d) => {
+    const isInTimeRange =
+      timeRange && d.date && d.date >= timeRange[0] && d.date <= timeRange[1];
+    return isInTimeRange;
+  });
+
+  // Aggregate crime data by type
+  const crimeCount = d3.rollups(filteredData, (v) => v.length, (d) => d.crimeType);
+
+  // Prepare data for pie chart (format: {crimeType, count})
+  const crimeDistributionData = crimeCount.map(([crimeType, count]) => ({
+    crimeType,
+    count,
+  }));
+
+  setCrimeDistribution(crimeDistributionData);
+}, [data, timeRange]);
+
+// Color scale for crime types
+const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
+// Draw the pie chart
+useEffect(() => {
+  if (crimeDistribution.length === 0) return; // No crime data to display
+
+  const width = 400;
+  const height = 400;
+  const radius = Math.min(width, height) / 2;
+
+  const svg = d3
+    .select("#pieChart")
+    .html("") // Clear previous chart
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height)
+    .append("g")
+    .attr("transform", `translate(${width / 2},${height / 2})`);
+
+  const pie = d3.pie().value((d) => d.count);
+
+  const arc = d3.arc().outerRadius(radius - 10).innerRadius(0);
+
+  const pieChartData = pie(crimeDistribution);
+
+  svg
+    .selectAll(".arc")
+    .data(pieChartData)
+    .enter()
+    .append("g")
+    .attr("class", "arc")
+    .append("path")
+    .attr("d", arc)
+    .attr("fill", (d, i) => colorScale(i))
+    .on("mouseover", (event, d) => {
+      // Darken the color on hover
+      const currentColor = d3.select(event.target).attr("fill");
+      const darkenedColor = d3.color(currentColor).darker(1); // Darken by factor of 1 (adjust as needed)
+
+      // Set the darkened color
+      d3.select(event.target).attr("fill", darkenedColor);
+
+      // Update selected crime type on mouseover
+      setSelectedCrime(d.data.crimeType);
+    })
+    .on("mouseout", (event) => {
+      // Reset the color to original on mouseout
+      const currentColor = d3.select(event.target).attr("fill");
+      const originalColor = d3.color(currentColor).brighter(1); // Lighten by factor of 1 (adjust as needed)
+
+      // Set the original color
+      d3.select(event.target).attr("fill", originalColor);
+
+      // Reset to all crime types on mouseout
+      setSelectedCrime("");
     });
 
-    // Aggregate crime data by type
-    const crimeCount = d3.rollups(
-      filteredData,
-      (v) => v.length,
-      (d) => d.crimeType
-    );
+  // Add text labels to the pie chart
+  svg
+    .selectAll(".arc")
+    .append("text")
+    .attr("transform", (d) => `translate(${arc.centroid(d)})`)
+    .attr("dy", ".35em")
+    .attr("text-anchor", "middle")
+    .text((d) => {
+      const percentage = (d.data.count / d3.sum(crimeDistribution.map((d) => d.count))) * 100;
+      return percentage >= 3 ? d.data.crimeType : ''; // Only show label if > 3%
+    })
+    .style("fill", "#fff")
+    .style("font-size", "12px");
 
-    // Prepare data for pie chart (format: {crimeType, count})
-    const crimeDistributionData = crimeCount.map(([crimeType, count]) => ({
-      crimeType,
-      count,
-    }));
+}, [crimeDistribution]);
 
-    setCrimeDistribution(crimeDistributionData);
-  }, [data, timeRange]);
 
-  // Color scale for crime types
-  const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
-  // Draw the pie chart
-  useEffect(() => {
-    if (crimeDistribution.length === 0) return; // No crime data to display
-
-    const width = 400;
-    const height = 400;
-    const radius = Math.min(width, height) / 2;
-
-    const svg = d3
-      .select("#pieChart")
-      .html("") // Clear previous chart
-      .append("svg")
-      .attr("width", width)
-      .attr("height", height)
-      .append("g")
-      .attr("transform", `translate(${width / 2},${height / 2})`);
-
-    const pie = d3.pie().value((d) => d.count);
-
-    const arc = d3.arc().outerRadius(radius - 10).innerRadius(0);
-
-    const pieChartData = pie(crimeDistribution);
-
-    svg
-      .selectAll(".arc")
-      .data(pieChartData)
-      .enter()
-      .append("g")
-      .attr("class", "arc")
-      .append("path")
-      .attr("d", arc)
-      .attr("fill", (d, i) => colorScale(i));
-
-    // Add text labels to the pie chart
-    svg
-      .selectAll(".arc")
-      .append("text")
-      .attr("transform", (d) => `translate(${arc.centroid(d)})`)
-      .attr("dy", ".35em")
-      .attr("text-anchor", "middle")
-      .text((d) => d.data.crimeType)
-      .style("fill", "#fff")
-      .style("font-size", "12px");
-
-  }, [crimeDistribution]);
 
 
 
@@ -244,6 +310,55 @@ useEffect(() => {
   return (
     <div>
       <h1>Crime Data Visualization</h1>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px' }}>
+  <div style={{ width: '40%' }}>
+    {/* Your existing components (e.g., the crime data table or any other content) */}
+    <h2>Crime Data</h2>
+    {/* Insert other components or data here */}
+  </div>
+
+  <div style={{ width: '40%' }}>
+    <h1>Crime Cluster Map</h1>
+    <div
+      style={{
+        width: '100%',
+        height: '500px',
+        margin: '0 auto',
+        border: '1px solid #ccc',
+        borderRadius: '8px',
+        overflow: 'hidden',
+      }}
+    >
+      <MapContainer
+        center={[30.2672, -97.7431]} // Default center
+        zoom={12}
+        style={{ height: '100%', width: '100%' }}
+      >
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {crimeData.map((cluster, index) => (
+          <CircleMarker
+            key={index}
+            center={[cluster.lat, cluster.lng]}
+            radius={Math.min(cluster.count * 2, 20)} // Adjust size based on cluster count
+            fillOpacity={0.6}
+            color="blue"
+            fillColor="blue"
+          >
+            <Popup>
+              <strong>Cluster Info</strong>
+              <br />
+              Crimes: {cluster.count}
+              <br />
+              Location: {cluster.lat.toFixed(4)}, {cluster.lng.toFixed(4)}
+            </Popup>
+          </CircleMarker>
+        ))}
+      </MapContainer>
+    </div>
+  </div>
+</div>
+
 
       {/* Crime Type Dropdown */}
       <div>
@@ -310,6 +425,9 @@ useEffect(() => {
     {/* Pie Chart */}
     <div id="pieChart"></div>
 
+
+
+
 {/* Color Key */}
 <div style={{ marginTop: "20px" }}>
   <h3>Crime Type Color Key:</h3>
@@ -330,6 +448,11 @@ useEffect(() => {
     ))}
   </div>
 </div>
+
+
+
+
+
 
 
 
