@@ -44,9 +44,9 @@ const CrimeDataChart = () => {
   // Draw the chart
   useEffect(() => {
     if (data.length === 0) return; // Ensure data is loaded
-
+    console.log("selected:", selectedCrime);
     // Filter data based on selectedCrime and timeRange
-    const filteredData = data.filter((d) => {
+    const filteredData = data.filter(d => !isNaN(d.lat) && !isNaN(d.lng)).filter((d) => {
       const isInTimeRange =
         timeRange &&
         d.date &&
@@ -56,6 +56,24 @@ const CrimeDataChart = () => {
         selectedCrime && selectedCrime !== "" ? d.crimeType === selectedCrime.trim() : true; // Include all data when selectedCrime is empty
       return isInTimeRange && matchesCrime;
     });
+
+    const clusterRadius = 0.05; // Adjust for clustering precision
+  const clusters = [];
+
+    filteredData.forEach((crime) => {
+      const cluster = clusters.find(
+        (c) =>
+          Math.abs(c.lat - crime.lat) <= clusterRadius &&
+          Math.abs(c.lng - crime.lng) <= clusterRadius
+      );
+      if (cluster) {
+        cluster.count += 1;
+      } else {
+        clusters.push({ lat: crime.lat, lng: crime.lng, count: 1 });
+      }
+    });
+  
+    setCrimeData(clusters);
 
     //console.log("Filtered Data:", filteredData); // Debugging
 
@@ -150,39 +168,6 @@ const CrimeDataChart = () => {
     setSelectedCrime(e.target.value);
   };
 
-
-// Draw the GeoMap
-useEffect(() => {
-  if (data.length === 0) return;
-
-  // Filter crimes based on the time range
-  const filteredData = data.filter(d => !isNaN(d.lat) && !isNaN(d.lng)).filter((d) => {
-    const isInTimeRange =
-      timeRange &&
-      d.date &&
-      d.date >= timeRange[0] &&
-      d.date <= timeRange[1];
-    return isInTimeRange;
-  });
-
-  // Group crimes into clusters (simple density-based approach)
-  const clusterRadius = 0.05; // Adjust for clustering precision
-  const clusters = [];
-  filteredData.forEach((crime) => {
-    const cluster = clusters.find(
-      (c) =>
-        Math.abs(c.lat - crime.lat) <= clusterRadius &&
-        Math.abs(c.lng - crime.lng) <= clusterRadius
-    );
-    if (cluster) {
-      cluster.count += 1;
-    } else {
-      clusters.push({ lat: crime.lat, lng: crime.lng, count: 1 });
-    }
-  });
-
-  setCrimeData(clusters);
-}, [data, timeRange]);
 
 // Draw the pie chart
 useEffect(() => {
@@ -308,56 +293,16 @@ useEffect(() => {
   };
 
   return (
-    <div>
-      <h1>Crime Data Visualization</h1>
+<div>
+  <h1>Crime Data Visualization</h1>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '20px' }}>
-  <div style={{ width: '40%' }}>
-    {/* Your existing components (e.g., the crime data table or any other content) */}
-    <h2>Crime Data</h2>
-    {/* Insert other components or data here */}
-  </div>
-
-  <div style={{ width: '40%' }}>
-    <h1>Crime Cluster Map</h1>
-    <div
-      style={{
-        width: '100%',
-        height: '500px',
-        margin: '0 auto',
-        border: '1px solid #ccc',
-        borderRadius: '8px',
-        overflow: 'hidden',
-      }}
-    >
-      <MapContainer
-        center={[30.2672, -97.7431]} // Default center
-        zoom={12}
-        style={{ height: '100%', width: '100%' }}
-      >
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-        {crimeData.map((cluster, index) => (
-          <CircleMarker
-            key={index}
-            center={[cluster.lat, cluster.lng]}
-            radius={Math.min(cluster.count * 2, 20)} // Adjust size based on cluster count
-            fillOpacity={0.6}
-            color="blue"
-            fillColor="blue"
-          >
-            <Popup>
-              <strong>Cluster Info</strong>
-              <br />
-              Crimes: {cluster.count}
-              <br />
-              Location: {cluster.lat.toFixed(4)}, {cluster.lng.toFixed(4)}
-            </Popup>
-          </CircleMarker>
-        ))}
-      </MapContainer>
+  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px' }}>
+    {/* Crime Cluster Map Section */}
+    <div style={{ width: '48%' }}>
+      <h2>Crime Cluster Map</h2>
+      
     </div>
   </div>
-</div>
 
 
       {/* Crime Type Dropdown */}
@@ -419,14 +364,71 @@ useEffect(() => {
         </select>
       </div>
 
-      {/* Chart Container */}
-      <div id="chart"></div>
+      <div
+  style={{
+    display: 'flex',
+    flexDirection: 'row', // Arrange in a row (side by side)
+    justifyContent: 'space-between', // Space out the items
+    padding: '20px',
+    height: '100vh', // Ensure they take up the full height of the viewport
+  }}
+>
+  {/* Chart Container */}
+  <div
+    id="chart"
+    style={{
+      width: '48%', // Adjust width to fit side by side with the map
+      height: '700px', // You can adjust the height as needed
+      border: '1px solid #ccc',
+      borderRadius: '8px',
+      overflow: 'hidden',
+    }}
+  >
+    {/* Your chart rendering logic goes here */}
+  </div>
+
+  {/* Map Container */}
+  <div
+    style={{
+      width: '48%', // Adjust width to fit side by side with the chart
+      height: '700px',
+      margin: '0 auto',
+      border: '1px solid #ccc',
+      borderRadius: '8px',
+      overflow: 'hidden',
+    }}
+  >
+    <MapContainer
+      center={[30.2672, -97.7431]} // Default center
+      zoom={12}
+      style={{ height: '100%', width: '100%' }}
+    >
+      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      {crimeData.map((cluster, index) => (
+        <CircleMarker
+          key={index}
+          center={[cluster.lat, cluster.lng]}
+          radius={Math.min(cluster.count * 2, 20)} // Adjust size based on cluster count
+          fillOpacity={0.6}
+          color="blue"
+          fillColor="blue"
+        >
+          <Popup>
+            <strong>Cluster Info</strong>
+            <br />
+            Crimes: {cluster.count}
+            <br />
+            Location: {cluster.lat.toFixed(4)}, {cluster.lng.toFixed(4)}
+          </Popup>
+        </CircleMarker>
+      ))}
+    </MapContainer>
+  </div>
+</div>
+
         
     {/* Pie Chart */}
     <div id="pieChart"></div>
-
-
-
 
 {/* Color Key */}
 <div style={{ marginTop: "20px" }}>
@@ -449,18 +451,7 @@ useEffect(() => {
   </div>
 </div>
 
-
-
-
-
-
-
-
     </div>
-
-    
-
-
 
     
   );
