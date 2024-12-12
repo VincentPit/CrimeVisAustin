@@ -1,13 +1,13 @@
-// mainView2.js (最终改进版)
+// mainView2.js
 import React, { useEffect, useState } from "react";
 import * as d3 from "d3";
 import dynamic from 'next/dynamic';
-import { Spinner, Container, Row, Col, Card, Form, Navbar, Nav, Button } from 'react-bootstrap';
-import { FaShieldAlt, FaFilter, FaCalendarAlt } from 'react-icons/fa';
-import { AiOutlineCheck } from 'react-icons/ai';
+import { Spinner, Container, Row, Col, Card, Form, Navbar, Nav } from 'react-bootstrap';
+import { FaShieldAlt, FaFilter, FaCalendarAlt } from 'react-icons/fa'; // 引入多个图标
 import 'bootstrap/dist/css/bootstrap.min.css';
-import 'leaflet/dist/leaflet.css';
+import 'leaflet/dist/leaflet.css'; // Leaflet 默认样式
 
+// 动态导入 react-leaflet 组件
 const MapContainer = dynamic(() => import("react-leaflet").then(mod => mod.MapContainer), { ssr: false });
 const TileLayer = dynamic(() => import("react-leaflet").then(mod => mod.TileLayer), { ssr: false });
 const CircleMarker = dynamic(() => import("react-leaflet").then(mod => mod.CircleMarker), { ssr: false });
@@ -25,11 +25,12 @@ const CrimeDataChart = () => {
   const [timeScale, setTimeScale] = useState("day");
   const [loading, setLoading] = useState(true);
 
+  // 加载和处理 CSV 数据
   useEffect(() => {
-    const parseDate = d3.timeParse("%d-%b-%y");
+    const parseDate = d3.timeParse("%d-%b-%y"); // 例如 "1-Jan-15" 格式
     d3.csv("dataset/Annual_Crime_Dataset_2015withLongLad.csv").then(rawData => {
       const processedData = rawData
-        .filter(d => d["GO Report Date"] && d["GO Highest Offense Desc"])
+        .filter(d => d["GO Report Date"] && d["GO Highest Offense Desc"]) // 过滤有效行
         .map(d => ({
           date: parseDate(d["GO Report Date"].trim()),
           lat: parseFloat(d.Latitude),
@@ -48,13 +49,15 @@ const CrimeDataChart = () => {
     });
   }, []);
 
+  // 绘制图表
   useEffect(() => {
     if (data.length === 0) return;
 
+    // 根据 selectedCrime 和 timeRange 过滤数据
     const filteredData = data.filter(d => !isNaN(d.lat) && !isNaN(d.lng)).filter(d => {
-      const inRange = d.date >= timeRange[0] && d.date <= timeRange[1];
-      const crimeMatch = selectedCrime ? d.crimeType === selectedCrime.trim() : true;
-      return inRange && crimeMatch;
+      const isInTimeRange = timeRange && d.date && d.date >= timeRange[0] && d.date <= timeRange[1];
+      const matchesCrime = selectedCrime ? d.crimeType === selectedCrime.trim() : true;
+      return isInTimeRange && matchesCrime;
     });
 
     const clusterRadius = 0.05;
@@ -71,18 +74,21 @@ const CrimeDataChart = () => {
 
     setCrimeData(clusters);
 
+    // 根据选择的时间刻度（日或月）聚合数据
     const aggregatedData = timeScale === "day"
       ? d3.rollups(filteredData, v => v.length, d => d3.timeDay.floor(d.date)).map(([key, value]) => ({ date: key, count: value }))
       : d3.rollups(filteredData, v => v.length, d => d3.timeMonth.floor(d.date)).map(([key, value]) => ({ date: key, count: value }));
 
+    // 清除之前的图表元素
     d3.select("#mainChart").selectAll("*").remove();
     d3.select("#detailedChart").selectAll("*").remove();
 
-    // 使用原始比例
+    // 设置图表尺寸
     const margin = { top: 20, right: 20, bottom: 30, left: 40 };
-    const width = 1200 - margin.left - margin.right; 
+    const width = 800 - margin.left - margin.right;
     const height = 300 - margin.top - margin.bottom;
 
+    // 创建 SVG 容器
     const mainSvg = d3.select("#mainChart")
       .append("svg")
       .attr("width", width + margin.left + margin.right)
@@ -97,29 +103,36 @@ const CrimeDataChart = () => {
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
+    // 定义比例尺
     const xMain = d3.scaleTime().domain(mainTimeRange).range([0, width * 0.55]);
     const yMain = d3.scaleLinear().domain([0, d3.max(aggregatedData, d => d.count) || 1]).nice().range([height, 0]);
 
     const xDetailed = d3.scaleTime().domain(timeRange).range([0, width * 0.55]);
     const yDetailed = d3.scaleLinear().domain([0, d3.max(aggregatedData, d => d.count) || 1]).nice().range([height, 0]);
 
+    // 添加主视图的 X 轴
     mainSvg.append("g")
       .attr("transform", `translate(0,${height})`)
       .call(d3.axisBottom(xMain).ticks(timeScale === "day" ? 10 : 6));
 
+    // 添加主视图的 Y 轴
     mainSvg.append("g")
       .call(d3.axisLeft(yMain).ticks(15).tickFormat(d3.format("d")));
 
+    // 添加详细视图的 X 轴
     detailedSvg.append("g")
       .attr("transform", `translate(0,${height})`)
       .call(d3.axisBottom(xDetailed).ticks(timeScale === "day" ? 10 : 6));
 
+    // 添加详细视图的 Y 轴
     detailedSvg.append("g")
       .call(d3.axisLeft(yDetailed).ticks(15).tickFormat(d3.format("d")));
 
+    // 创建折线函数
     const line = d3.line().x(d => xMain(d.date)).y(d => yMain(d.count));
     const detailedLine = d3.line().x(d => xDetailed(d.date)).y(d => yDetailed(d.count));
 
+    // 添加主视图的折线
     mainSvg.append("path")
       .data([aggregatedData])
       .attr("class", "line")
@@ -128,6 +141,7 @@ const CrimeDataChart = () => {
       .attr("stroke", "lightsteelblue")
       .attr("stroke-width", 2);
 
+    // 添加详细视图的折线
     detailedSvg.append("path")
       .data([aggregatedData.filter(d => d.date >= timeRange[0] && d.date <= timeRange[1])])
       .attr("class", "line")
@@ -136,9 +150,13 @@ const CrimeDataChart = () => {
       .attr("stroke", "steelblue")
       .attr("stroke-width", 2);
 
+    // 定义刷子功能
     const brush = d3.brushX().extent([[0, 0], [width, height]]).on("brush end", brushed);
+
+    // 将刷子添加到主视图
     mainSvg.append("g").attr("class", "brush").call(brush);
 
+    // 刷子事件处理器
     function brushed(event) {
       if (!event.selection) return;
 
@@ -156,6 +174,7 @@ const CrimeDataChart = () => {
       setMainTimeRange(initialTimeRange);
     }
 
+    // 为详细视图添加 X 轴
     detailedSvg.append("g")
       .attr("class", "x-axis")
       .attr("transform", `translate(0,${height})`)
@@ -163,11 +182,17 @@ const CrimeDataChart = () => {
 
   }, [data, selectedCrime, timeRange, timeScale, mainTimeRange, initialTimeRange]);
 
+  // 处理选择的犯罪类型
+  const handleCrimeChange = (e) => {
+    setSelectedCrime(e.target.value);
+  };
+
+  // 绘制条形图
   useEffect(() => {
     if (data.length === 0) return;
 
     const filteredData = data.filter(d => {
-      const isInTimeRange = d.date && d.date >= timeRange[0] && d.date <= timeRange[1];
+      const isInTimeRange = timeRange && d.date && d.date >= timeRange[0] && d.date <= timeRange[1];
       return isInTimeRange;
     });
 
@@ -178,8 +203,10 @@ const CrimeDataChart = () => {
     setCrimeDistribution(crimeDistributionData);
   }, [data, timeRange]);
 
+  // 颜色比例尺
   const colorScale = d3.scaleOrdinal(d3.schemeCategory10);
 
+  // 绘制条形图
   useEffect(() => {
     if (crimeDistribution.length === 0) return;
 
@@ -190,16 +217,7 @@ const CrimeDataChart = () => {
     const svg = d3.select("#barChart").html("").append("svg")
       .attr("width", width + margin.left + margin.right)
       .attr("height", height + margin.top + margin.bottom)
-      .style("display","block")
-      .style("margin","0 auto")
       .append("g").attr("transform", `translate(${margin.left},${margin.top})`);
-
-    svg.append("rect")
-      .attr("x",-margin.left)
-      .attr("y",-margin.top)
-      .attr("width",width+margin.left+margin.right)
-      .attr("height",height+margin.top+margin.bottom)
-      .attr("fill","#f9f9f9");
 
     const x = d3.scaleBand().domain(crimeDistribution.map(d => d.crimeType)).range([0, width]).padding(0.1);
     const y = d3.scaleLinear().domain([0, d3.max(crimeDistribution, d => d.count)]).nice().range([height, 0]);
@@ -213,32 +231,39 @@ const CrimeDataChart = () => {
       .attr("width", x.bandwidth())
       .attr("height", d => height - y(d.count))
       .attr("fill", (d, i) => colorScale(i))
-      .style("stroke","#333")
-      .style("stroke-width","0.5px")
       .on("mouseover", (event, d) => {
+        // 加深颜色
         const currentColor = d3.select(event.target).attr("fill");
         const darkenedColor = d3.color(currentColor).darker(1);
         d3.select(event.target).attr("fill", darkenedColor);
         setSelectedCrime(d.crimeType);
       })
       .on("mouseout", (event) => {
+        // 重置颜色
         const currentColor = d3.select(event.target).attr("fill");
         const originalColor = d3.color(currentColor).brighter(1);
         d3.select(event.target).attr("fill", originalColor);
         setSelectedCrime("");
       });
 
+    // 添加 X 轴
     svg.append("g").attr("transform", `translate(0,${height})`).call(d3.axisBottom(x))
       .selectAll("text").attr("transform", "rotate(-45)").style("text-anchor", "end");
 
+    // 添加 Y 轴
     svg.append("g").call(d3.axisLeft(y));
 
+    // 添加图表标题
+    svg.append("text")
+      .attr("x", width / 2)
+      .attr("y", -10)
+      .attr("text-anchor", "middle")
+      .attr("font-size", "20px")
+      .attr("font-weight", "bold")
+      .text("Crime Types Distribution");
   }, [crimeDistribution]);
 
-  const handleCrimeChange = (e) => {
-    setSelectedCrime(e.target.value);
-  };
-
+  // 处理时间刻度变化
   const handleTimeScaleChange = (e) => {
     setTimeScale(e.target.value);
   };
@@ -253,22 +278,17 @@ const CrimeDataChart = () => {
     );
   }
 
-  // 统一卡片背景透明度为 rgba(255,255,255,0.7)
-  const cardStyle = { backgroundColor: 'rgba(255,255,255,0.7)', border:'1px solid #ccc' };
-
   return (
     <div>
+      {/* 内联样式 */}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&family=Roboto&display=swap');
         body {
           font-family: 'Roboto', sans-serif;
-          background: url('/background.jpg') no-repeat center center fixed;
-          background-size: cover;
+          background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
           color: #333;
         }
         h1, h2, h3, h4, h5, h6 {
           font-family: 'Montserrat', sans-serif;
-          font-weight:700;
         }
         .card-title {
           display: flex;
@@ -289,7 +309,7 @@ const CrimeDataChart = () => {
       `}</style>
 
       {/* 导航栏 */}
-      <Navbar bg="light" expand="lg" className="mb-4 shadow-sm" style={{ backgroundColor: 'rgba(255,255,255,0.8)' }}>
+      <Navbar bg="light" expand="lg" className="mb-4 shadow-sm">
         <Container>
           <Navbar.Brand href="#">
             <FaShieldAlt style={{ marginRight: '8px' }} />
@@ -310,31 +330,18 @@ const CrimeDataChart = () => {
         {/* 标题 */}
         <Row className="mb-4">
           <Col className="text-center">
-            <h1 style={{fontSize:'48px', color:'#000000'}}>
-              <FaShieldAlt style={{ marginRight: '10px'}} />
+            <h1>
+              <FaShieldAlt style={{ marginRight: '10px', color: '#007bff' }} />
               Crime Data Visualization
             </h1>
           </Col>
         </Row>
 
-        {/* Info: 简约介绍，不使用大标题 */}
-        <Row className="justify-content-center mb-4">
-          <Col xs={12} md={6}>
-            <Card className="shadow-sm" style={cardStyle}>
-              <Card.Body>
-                <Card.Text style={{fontSize:'16px'}}>
-                  This tool helps you visualize and analyze Texas crime data over a selected period, enabling informed insights.
-                </Card.Text>
-              </Card.Body>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* 控制面板 + Apply 按钮 */}
-        <Row className="mb-4 justify-content-center" style={{gap:'10px'}}>
-          <Col xs={12} md={4}>
+        {/* 控制面板 */}
+        <Row className="mb-4 justify-content-center">
+          <Col xs={12} md={4} className="mb-2">
             <Form.Group controlId="crimeType">
-              <Form.Label className="fw-bold">
+              <Form.Label>
                 <FaFilter style={{ marginRight: '5px' }} />
                 Select Crime Type
               </Form.Label>
@@ -346,9 +353,9 @@ const CrimeDataChart = () => {
               </Form.Control>
             </Form.Group>
           </Col>
-          <Col xs={12} md={4}>
+          <Col xs={12} md={4} className="mb-2">
             <Form.Group controlId="timeScale">
-              <Form.Label className="fw-bold">
+              <Form.Label>
                 <FaCalendarAlt style={{ marginRight: '5px' }} />
                 Select Time Scale
               </Form.Label>
@@ -358,19 +365,18 @@ const CrimeDataChart = () => {
               </Form.Control>
             </Form.Group>
           </Col>
-          
         </Row>
 
         {/* 主体内容区：图表与地图 */}
         <Row className="mb-4">
           <Col xs={12} md={6} className="mb-4">
-            <Card className="h-100 shadow-sm" style={{...cardStyle, background:'rgba(255,255,255,0.7)'}}>
+            <Card className="h-100 shadow-sm">
               <Card.Body>
                 <Card.Title>
                   <FaFilter style={{ marginRight: '8px' }} />
                   Crime Trends
                 </Card.Title>
-                <div id="chart" style={{ width: '100%', height: '700px', background:'rgba(255,255,255,0.6)', borderRadius:'5px', padding:'10px', border:'1px solid #ccc'}}>
+                <div id="chart" style={{ width: '100%', height: '700px' }}>
                   <div id="mainChart" style={{ width: '100%', height: '50%' }}></div>
                   <div id="detailedChart" style={{ width: '100%', height: '50%' }}></div>
                 </div>
@@ -378,7 +384,7 @@ const CrimeDataChart = () => {
             </Card>
           </Col>
           <Col xs={12} md={6} className="mb-4">
-            <Card className="h-100 shadow-sm" style={cardStyle}>
+            <Card className="h-100 shadow-sm">
               <Card.Body>
                 <Card.Title>
                   <FaShieldAlt style={{ marginRight: '8px' }} />
@@ -413,7 +419,7 @@ const CrimeDataChart = () => {
         {/* 条形图区域 */}
         <Row className="mb-4">
           <Col>
-            <Card className="shadow-sm" style={cardStyle}>
+            <Card className="shadow-sm">
               <Card.Body>
                 <Card.Title>
                   <FaFilter style={{ marginRight: '8px' }} />
@@ -429,7 +435,7 @@ const CrimeDataChart = () => {
         <Row>
           <Col className="text-center">
             <hr />
-            <p style={{color:'#fff', textShadow:'1px 1px 2px rgba(0,0,0,0.5)'}}>&copy; {new Date().getFullYear()} Crime Data Dashboard. All rights reserved.</p>
+            <p>&copy; {new Date().getFullYear()} Crime Data Dashboard. All rights reserved.</p>
           </Col>
         </Row>
       </Container>
