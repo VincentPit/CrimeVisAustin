@@ -1,5 +1,4 @@
-/* styles.css */
-
+/* Base Styles for the Page */
 .page {
   --gray-rgb: 0, 0, 0;
   --gray-alpha-200: rgba(var(--gray-rgb), 0.08);
@@ -10,12 +9,13 @@
 
   display: grid;
   grid-template-rows: 1fr auto; /* Adjusted to fit header and footer */
-  align-items: start;
-  justify-items: center;
+  grid-template-columns: 1fr; /* Single column for vertical centering */
+  align-items: center; /* Center items vertically */
+  justify-items: center; /* Center items horizontally */
   min-height: 100vh;
-  padding: 20px; /* Reduced padding for better responsiveness */
+  padding: 20px;
   gap: 32px;
-  font-family: var(--font-geist-sans, Arial, sans-serif); /* Fallback font */
+  font-family: var(--font-geist-sans, Arial, sans-serif);
   background-color: var(--gray-alpha-100);
   color: #333;
 }
@@ -33,54 +33,55 @@
   }
 }
 
+/* Navigation Bar Styles */
+.navbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 2rem;
+}
+
+.navlist {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.navitem {
+  margin: 0;
+}
+
+.link {
+  font-size: 1.5rem;
+  color: #0070f3;
+  text-decoration: none;
+  font-weight: bold;
+  padding: 0.5rem 1rem;
+  border: 2px solid #0070f3;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.link:hover {
+  background-color: #0070f3;
+  color: #fff;
+}
+
+/* Main Content Styles */
 .main {
   display: flex;
   flex-direction: column;
   gap: 32px;
   width: 100%;
+  text-align: center;
 }
 
-.main ol {
-  font-family: var(--font-geist-mono, monospace);
-  padding-left: 0;
-  margin: 0;
-  font-size: 14px;
-  line-height: 24px;
-  letter-spacing: -0.01em;
-  list-style-position: inside;
-}
-
-.main li:not(:last-of-type) {
-  margin-bottom: 8px;
-}
-
-.main code {
-  font-family: inherit;
-  background: var(--gray-alpha-100);
-  padding: 2px 4px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-
-.ctas {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.ctas select {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.ctas label {
-  margin-right: 8px;
-}
-
+/* Footer Styles */
 .footer {
   display: flex;
   gap: 24px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 .footer a {
@@ -118,6 +119,7 @@
   }
 }
 
+/* Responsive Design */
 @media (max-width: 600px) {
   .page {
     padding: 16px;
@@ -148,8 +150,7 @@
   }
 }
 
-/* Additional Classes for Chart and Map Containers */
-
+/* Chart and Map Containers */
 .chart-container {
   width: 48%;
   height: 700px;

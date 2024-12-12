@@ -1,4 +1,4 @@
-// mainView2.js (最终改进版)
+// mainView2.js 
 import React, { useEffect, useState } from "react";
 import * as d3 from "d3";
 import dynamic from 'next/dynamic';
@@ -297,11 +297,6 @@ const CrimeDataChart = () => {
           </Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
-            <Nav className="ms-auto">
-              <Nav.Link href="#">Home</Nav.Link>
-              <Nav.Link href="#">About</Nav.Link>
-              <Nav.Link href="#">Contact</Nav.Link>
-            </Nav>
           </Navbar.Collapse>
         </Container>
       </Navbar>
@@ -370,7 +365,7 @@ const CrimeDataChart = () => {
                   <FaFilter style={{ marginRight: '8px' }} />
                   Crime Trends
                 </Card.Title>
-                <div id="chart" style={{ width: '100%', height: '700px', background:'rgba(255,255,255,0.6)', borderRadius:'5px', padding:'10px', border:'1px solid #ccc'}}>
+                <div id="chart" style={{ width: '100%', height: '700px', background:'rgba(255,255,255,0.8)', borderRadius:'5px', padding:'10px', border:'1px solid #ccc'}}>
                   <div id="mainChart" style={{ width: '100%', height: '50%' }}></div>
                   <div id="detailedChart" style={{ width: '100%', height: '50%' }}></div>
                 </div>
@@ -429,7 +424,7 @@ const CrimeDataChart = () => {
         <Row>
           <Col className="text-center">
             <hr />
-            <p style={{color:'#fff', textShadow:'1px 1px 2px rgba(0,0,0,0.5)'}}>&copy; {new Date().getFullYear()} Crime Data Dashboard. All rights reserved.</p>
+            <p style={{color:'#fff', textShadow:'1px 1px 2px rgba(0,0,0,0.5)'}}>&copy; {new Date().getFullYear()} DATS-SHU-235 Austin Crime Visualization.</p>
           </Col>
         </Row>
       </Container>
